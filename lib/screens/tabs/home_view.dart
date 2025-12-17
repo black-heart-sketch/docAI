@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/document_provider.dart';
 import '../../utils/share_pref.dart';
+import '../templates_screen.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -168,7 +169,14 @@ class HomeView extends StatelessWidget {
                     'Templates',
                     Icons.copy_all,
                     Colors.orangeAccent,
-                    () {}, // TODO: Implement templates
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TemplatesScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
