@@ -45,4 +45,4 @@ if __name__ == '__main__':
     # Get config from environment variable or default to 'dev'
     config_name = 'dev' 
     app = create_app(config_name)
-    app.run(host='0.0.0.0', port=5003, debug=True)
+    app.run(host='13.62.49.69', port=5003, debug=True)
