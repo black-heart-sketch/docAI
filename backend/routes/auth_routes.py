@@ -18,7 +18,7 @@ def register():
     if not data or not data.get('email') or not data.get('password') or not data.get('name'):
         return jsonify({"error": "Missing required fields"}), 400
         
-    result = register_user(data.get('name'), data.get('email'), data.get('password'))
+    result = register_user(data.get('name'), data.get('email'), data.get('password'), data.get('class_name'))
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result), 201

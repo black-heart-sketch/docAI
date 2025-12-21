@@ -13,12 +13,12 @@ def login_user(email, password):
             
     return {"error": "Invalid credentials"}
 
-def register_user(name, email, password):
+def register_user(name, email, password, class_name=None):
     """Registers a new user."""
     # Check if user already exists
     if User.get_by_email(email):
         return {"error": "User already exists"}
         
-    new_user = User.create(name, email, password)
+    new_user = User.create(name, email, password, class_name=class_name)
     mock_token = f"mock-jwt-for-{new_user.id}"
     return {"token": mock_token, "user": new_user.to_json()}

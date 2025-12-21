@@ -58,7 +58,11 @@ def _send_to_ai(system_prompt, chat_history, user_message):
     """
     Common helper to send messages to OpenRouter.
     """
-    api_key = "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"
+    api_key = "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"
+    
+    # Check if API key is configured
+    if not api_key or api_key == '':
+        return {"error": "OpenRouter API key is not configured. Please set OPENROUTER_API_KEY in your .env file."}
     
     messages = [{"role": "system", "content": system_prompt}]
     
@@ -80,7 +84,7 @@ def _send_to_ai(system_prompt, chat_history, user_message):
     }
     
     # Use a fast chat model
-    model = "meta-llama/llama-3.3-70b-instruct:free" 
+    model = "mistralai/devstral-2512:free" 
     
     try:
         response = requests.post(
@@ -93,11 +97,16 @@ def _send_to_ai(system_prompt, chat_history, user_message):
             }
         )
         
+        print(f"[DEBUG] AI API response status: {response.status_code}")
+        
         if response.status_code == 200:
             data = response.json()
             return {"response": data['choices'][0]['message']['content']}
         else:
-            return {"error": f"AI Error: {response.text}"}
+            error_text = response.text
+            print(f"[DEBUG] AI API Error: {error_text}")
+            return {"error": f"AI Error ({response.status_code}): {error_text}"}
             
     except Exception as e:
+        print(f"[DEBUG] Exception in _send_to_ai: {str(e)}")
         return {"error": str(e)}

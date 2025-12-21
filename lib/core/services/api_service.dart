@@ -5,7 +5,8 @@ import '../models/template.dart';
 import '../models/user.dart';
 
 class ApiService {
-  static const String _baseUrl = "http://172.31.18.152:5003/api";
+  // static const String _baseUrl = "http://13.62.49.69:5003/api";
+  static const String _baseUrl = "http://192.168.137.87:5003/api";
 
   // --- Auth ---
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -21,11 +22,26 @@ class ApiService {
     }
   }
 
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register(
+    String name,
+    String email,
+    String password, {
+    String? className,
+  }) async {
+    final Map<String, dynamic> body = {
+      'name': name,
+      'email': email,
+      'password': password,
+    };
+
+    if (className != null) {
+      body['class_name'] = className;
+    }
+
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'email': email, 'password': password}),
+      body: jsonEncode(body),
     );
     if (response.statusCode != 201) {
       throw Exception('Failed to register: ${response.body}');

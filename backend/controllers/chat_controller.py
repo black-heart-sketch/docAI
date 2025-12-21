@@ -29,11 +29,17 @@ def chat_template():
     user_message = data.get('message')
     history = data.get('history', [])
     
+    print(f"[DEBUG] chat_template called with template_id: {template_id}, message: {user_message}")
+    
     if not template_id or not user_message:
         return {"error": "Missing template_id or message"}
         
     template = Template.get_by_id(template_id)
     if not template:
+        print(f"[DEBUG] Template not found: {template_id}")
         return {"error": "Template not found"}
-        
-    return chat_with_template_context(template['structure'], history, user_message)
+    
+    print(f"[DEBUG] Template found, calling chat service...")
+    result = chat_with_template_context(template['structure'], history, user_message)
+    print(f"[DEBUG] Chat service result: {result}")
+    return result

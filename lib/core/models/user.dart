@@ -5,6 +5,7 @@ class User {
   final String role;
   final String? phone;
   final String? bio;
+  final String? className;
 
   User({
     required this.id,
@@ -13,6 +14,7 @@ class User {
     required this.role,
     this.phone,
     this.bio,
+    this.className,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class User {
       role: json['role'],
       phone: json['phone'],
       bio: json['bio'],
+      className: json['class_name'],
     );
   }
 
@@ -34,6 +37,7 @@ class User {
       'role': role,
       'phone': phone,
       'bio': bio,
+      'class_name': className,
     };
   }
 }

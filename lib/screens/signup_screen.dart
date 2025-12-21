@@ -15,6 +15,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  String? _selectedClass;
+
+  final List<String> _classes = ['BA1A', 'BA1B', 'BA1C', 'BA1D'];
 
   @override
   void dispose() {
@@ -114,6 +117,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedClass,
+                        decoration: InputDecoration(
+                          labelText: 'Class',
+                          prefixIcon: const Icon(Icons.school_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: _classes.map((String className) {
+                          return DropdownMenuItem<String>(
+                            value: className,
+                            child: Text(className),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedClass = newValue;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select your class';
+                          }
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 30),
                       Consumer<AuthProvider>(
                         builder: (ctx, auth, _) {
@@ -143,6 +174,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       _nameController.text,
                                       _emailController.text,
                                       _passwordController.text,
+                                      className: _selectedClass,
                                     );
                                     if (mounted) {
                                       context.go('/dashboard');

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:animated_notch_bottom_bar/animated_notch_bottom_bar/animated_notch_bottom_bar.dart';
 
-import 'package:provider/provider.dart';
-import '../core/providers/auth_provider.dart';
 import '../l10n/app_localizations.dart';
 import 'tabs/home_view.dart';
 import 'tabs/chat_view.dart';
@@ -20,7 +18,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _pageController = PageController(initialPage: 0);
   final _controller = NotchBottomBarController(index: 0);
 
-  int maxCount = 5;
+  int maxCount = 4;
 
   @override
   void dispose() {
@@ -30,9 +28,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final isAdmin = authProvider.user?.role == 'admin';
+    final screenWidth = MediaQuery.of(context).size.width;
 
+    // Responsive sizing based on screen width
+    final bool isSmallScreen = screenWidth < 360;
+    final double iconSize = isSmallScreen ? 20.0 : 24.0;
+    final double bottomRadius = isSmallScreen ? 20.0 : 28.0;
+
+    // Build pages list based on user role
     final List<Widget> bottomBarPages = [
       const HomeView(),
       const ChatView(),
@@ -54,16 +57,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              isAdmin ? Icons.admin_panel_settings : Icons.person,
+              Icons.person,
               color: Theme.of(context).colorScheme.onPrimary,
             ),
             onPressed: () {
-              authProvider.toggleAdminRole();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    'Switched to ${!isAdmin ? l10n.adminRole : l10n.student} role',
-                  ),
+                  content: Text('Switched to ${l10n.student} role'),
                   duration: const Duration(seconds: 1),
                 ),
               );
@@ -79,61 +79,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       extendBody: true,
       bottomNavigationBar: (bottomBarPages.length <= maxCount)
-          ? AnimatedNotchBottomBar(
-              key: ValueKey(bottomBarPages.length),
-              color: Theme.of(context).cardColor,
-              onTap: (index) {
-                _pageController.jumpToPage(index);
-              },
-              kIconSize: 24.0,
-              kBottomRadius: 28.0,
-              notchBottomBarController: _controller,
-              bottomBarItems: [
-                BottomBarItem(
-                  inActiveItem: Icon(
-                    Icons.home_filled,
-                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-                  ),
-                  activeItem: Icon(
-                    Icons.home_filled,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  itemLabel: l10n.home,
+          ? SizedBox(
+              width: screenWidth,
+              child: AnimatedNotchBottomBar(
+                key: ValueKey(bottomBarPages.length),
+                color: Theme.of(context).cardColor,
+                onTap: (index) {
+                  _pageController.jumpToPage(index);
+                },
+                kIconSize: iconSize,
+                kBottomRadius: bottomRadius,
+                notchBottomBarController: _controller,
+                itemLabelStyle: TextStyle(
+                  fontSize: isSmallScreen ? 10.0 : 12.0,
                 ),
-                BottomBarItem(
-                  inActiveItem: Icon(
-                    Icons.chat_bubble_outline,
-                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                bottomBarWidth: screenWidth,
+                durationInMilliSeconds: 300,
+                bottomBarItems: [
+                  BottomBarItem(
+                    inActiveItem: Icon(
+                      Icons.home_filled,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color!.withOpacity(0.5),
+                      size: iconSize,
+                    ),
+                    activeItem: Icon(
+                      Icons.home_filled,
+                      color: Theme.of(context).primaryColor,
+                      size: iconSize,
+                    ),
+                    itemLabel: l10n.home,
                   ),
-                  activeItem: Icon(
-                    Icons.chat_bubble,
-                    color: Theme.of(context).primaryColor,
+                  BottomBarItem(
+                    inActiveItem: Icon(
+                      Icons.chat_bubble_outline,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color!.withOpacity(0.5),
+                      size: iconSize,
+                    ),
+                    activeItem: Icon(
+                      Icons.chat_bubble,
+                      color: Theme.of(context).primaryColor,
+                      size: iconSize,
+                    ),
+                    itemLabel: l10n.chat,
                   ),
-                  itemLabel: l10n.chat,
-                ),
-                BottomBarItem(
-                  inActiveItem: Icon(
-                    Icons.history,
-                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  BottomBarItem(
+                    inActiveItem: Icon(
+                      Icons.history,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color!.withOpacity(0.5),
+                      size: iconSize,
+                    ),
+                    activeItem: Icon(
+                      Icons.history,
+                      color: Theme.of(context).primaryColor,
+                      size: iconSize,
+                    ),
+                    itemLabel: l10n.history,
                   ),
-                  activeItem: Icon(
-                    Icons.history,
-                    color: Theme.of(context).primaryColor,
+                  BottomBarItem(
+                    inActiveItem: Icon(
+                      Icons.person_outline,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color!.withOpacity(0.5),
+                      size: iconSize,
+                    ),
+                    activeItem: Icon(
+                      Icons.person,
+                      color: Theme.of(context).primaryColor,
+                      size: iconSize,
+                    ),
+                    itemLabel: l10n.profile,
                   ),
-                  itemLabel: l10n.history,
-                ),
-                BottomBarItem(
-                  inActiveItem: Icon(
-                    Icons.person_outline,
-                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-                  ),
-                  activeItem: Icon(
-                    Icons.person,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  itemLabel: l10n.profile,
-                ),
-              ],
+                ],
+              ),
             )
           : null,
     );

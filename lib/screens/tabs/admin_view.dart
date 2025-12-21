@@ -24,6 +24,10 @@ class _AdminViewState extends State<AdminView> {
   bool _isLoading = true;
   String _searchQuery = '';
   int _currentIndex = 0;
+  String? _selectedUserClassFilter;
+  String? _selectedDocumentClassFilter;
+
+  final List<String> _classOptions = ['All', 'BA1A', 'BA1B', 'BA1C', 'BA1D'];
 
   @override
   void initState() {
@@ -396,29 +400,69 @@ class _AdminViewState extends State<AdminView> {
   Widget _buildUsersTab() {
     final filteredUsers = _users.where((user) {
       final query = _searchQuery.toLowerCase();
-      return user.name.toLowerCase().contains(query) ||
+      final matchesSearch =
+          user.name.toLowerCase().contains(query) ||
           user.email.toLowerCase().contains(query);
+
+      // Apply class filter
+      if (_selectedUserClassFilter != null &&
+          _selectedUserClassFilter != 'All' &&
+          _selectedUserClassFilter!.isNotEmpty) {
+        return matchesSearch && user.className == _selectedUserClassFilter;
+      }
+
+      return matchesSearch;
     }).toList();
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search users...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          child: Column(
+            children: [
+              TextField(
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search users...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
               ),
-              filled: true,
-              fillColor: Theme.of(context).cardColor,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            ),
-            onChanged: (value) {
-              setState(() => _searchQuery = value);
-            },
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedUserClassFilter,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.school),
+                  hintText: 'Filter by class',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                items: _classOptions.map((String className) {
+                  return DropdownMenuItem<String>(
+                    value: className,
+                    child: Text(className),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedUserClassFilter = newValue;
+                  });
+                },
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -458,32 +502,61 @@ class _AdminViewState extends State<AdminView> {
                         const SizedBox(height: 4),
                         Text(user.email),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: user.role == 'admin'
-                                ? Colors.redAccent.withOpacity(0.1)
-                                : Colors.blueAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: user.role == 'admin'
-                                  ? Colors.redAccent.withOpacity(0.5)
-                                  : Colors.blueAccent.withOpacity(0.5),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: user.role == 'admin'
+                                    ? Colors.redAccent.withOpacity(0.1)
+                                    : Colors.blueAccent.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: user.role == 'admin'
+                                      ? Colors.redAccent.withOpacity(0.5)
+                                      : Colors.blueAccent.withOpacity(0.5),
+                                ),
+                              ),
+                              child: Text(
+                                user.role.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: user.role == 'admin'
+                                      ? Colors.redAccent
+                                      : Colors.blueAccent,
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            user.role.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: user.role == 'admin'
-                                  ? Colors.redAccent
-                                  : Colors.blueAccent,
-                            ),
-                          ),
+                            if (user.className != null &&
+                                user.className!.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.5),
+                                  ),
+                                ),
+                                child: Text(
+                                  user.className!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -792,30 +865,71 @@ class _AdminViewState extends State<AdminView> {
       final filename = (doc['filename'] ?? '').toLowerCase();
       final userName = (doc['user_name'] ?? '').toLowerCase();
       final userEmail = (doc['user_email'] ?? '').toLowerCase();
-      return filename.contains(query) ||
+      final matchesSearch =
+          filename.contains(query) ||
           userName.contains(query) ||
           userEmail.contains(query);
+
+      // Apply class filter
+      if (_selectedDocumentClassFilter != null &&
+          _selectedDocumentClassFilter != 'All' &&
+          _selectedDocumentClassFilter!.isNotEmpty) {
+        final userClass = doc['user_class'] ?? '';
+        return matchesSearch && userClass == _selectedDocumentClassFilter;
+      }
+
+      return matchesSearch;
     }).toList();
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search by filename or user...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          child: Column(
+            children: [
+              TextField(
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search by filename or user...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
               ),
-              filled: true,
-              fillColor: Theme.of(context).cardColor,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            ),
-            onChanged: (value) {
-              setState(() => _searchQuery = value);
-            },
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedDocumentClassFilter,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.school),
+                  hintText: 'Filter by class',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                items: _classOptions.map((String className) {
+                  return DropdownMenuItem<String>(
+                    value: className,
+                    child: Text(className),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedDocumentClassFilter = newValue;
+                  });
+                },
+              ),
+            ],
           ),
         ),
         Padding(

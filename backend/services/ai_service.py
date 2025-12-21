@@ -71,7 +71,7 @@ def analyze_document(document_id, file_path, template_structure):
     }}
     """
 
-    api_key = "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"
+    api_key = "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"
     if not api_key:
         print("Error: OPENROUTER_API_KEY not set.")
         return {"error": "Server misconfiguration (missing API key)", "analysis_status": "failed"}

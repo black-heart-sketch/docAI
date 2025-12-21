@@ -2,13 +2,16 @@ from extensions import mongo
 from werkzeug.security import generate_password_hash, check_password_hash
 
 class User:
-    def __init__(self, id, email, role, name, phone=None, bio=None):
+    VALID_CLASSES = ['BA1A', 'BA1B', 'BA1C', 'BA1D']
+    
+    def __init__(self, id, email, role, name, phone=None, bio=None, class_name=None):
         self.id = id
         self.email = email
         self.role = role
         self.name = name
         self.phone = phone
         self.bio = bio
+        self.class_name = class_name
 
     def to_json(self):
         return {
@@ -17,7 +20,8 @@ class User:
             "role": self.role,
             "name": self.name,
             "phone": self.phone,
-            "bio": self.bio
+            "bio": self.bio,
+            "class_name": self.class_name
         }
 
     @staticmethod
@@ -30,7 +34,8 @@ class User:
                 user_data['role'], 
                 user_data['name'],
                 user_data.get('phone'),
-                user_data.get('bio')
+                user_data.get('bio'),
+                user_data.get('class_name')
             )
         return None
 
@@ -45,7 +50,8 @@ class User:
                 user_data['role'], 
                 user_data['name'],
                 user_data.get('phone'),
-                user_data.get('bio')
+                user_data.get('bio'),
+                user_data.get('class_name')
             )
         return None
 
@@ -55,7 +61,7 @@ class User:
         users_collection = mongo.db.users
         
         # Only allow updating specific fields
-        allowed_fields = ['name', 'email', 'phone', 'bio']
+        allowed_fields = ['name', 'email', 'phone', 'bio', 'class_name']
         update_data = {k: v for k, v in updates.items() if k in allowed_fields}
         
         if not update_data:
@@ -93,21 +99,27 @@ class User:
             })
 
     @staticmethod
-    def create(name, email, password, role="student"):
+    def create(name, email, password, role="student", class_name=None):
         """Creates a new user."""
         users_collection = mongo.db.users
         import uuid
         user_id = str(uuid.uuid4())
         hashed_password = generate_password_hash(password)
         
-        users_collection.insert_one({
+        user_doc = {
             "id": user_id,
             "email": email,
             "name": name,
             "role": role,
             "password": hashed_password
-        })
-        return User(user_id, email, role, name)
+        }
+        
+        # Add class_name if provided and valid
+        if class_name and class_name in User.VALID_CLASSES:
+            user_doc["class_name"] = class_name
+        
+        users_collection.insert_one(user_doc)
+        return User(user_id, email, role, name, class_name=class_name)
 
     @staticmethod
     def verify_credentials(email, password):
@@ -120,7 +132,8 @@ class User:
                 user_data['role'], 
                 user_data['name'],
                 user_data.get('phone'),
-                user_data.get('bio')
+                user_data.get('bio'),
+                user_data.get('class_name')
             )
         return None
 
@@ -134,5 +147,6 @@ class User:
             u.get('role', 'student'), 
             u.get('name', 'Unknown'),
             u.get('phone'),
-            u.get('bio')
+            u.get('bio'),
+            u.get('class_name')
         ).to_json() for u in users_cursor]

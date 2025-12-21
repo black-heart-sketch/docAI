@@ -105,8 +105,10 @@ class Document:
             if user:
                 doc_json['user_name'] = user.get('name', 'Unknown')
                 doc_json['user_email'] = user.get('email', 'N/A')
+                doc_json['user_class'] = user.get('class_name', '')
             else:
                 doc_json['user_name'] = 'Unknown'
                 doc_json['user_email'] = 'N/A'
+                doc_json['user_class'] = ''
             documents.append(doc_json)
         return documents

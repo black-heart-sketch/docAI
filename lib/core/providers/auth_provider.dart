@@ -36,10 +36,15 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register(
+    String name,
+    String email,
+    String password, {
+    String? className,
+  }) async {
     _setLoading(true);
     try {
-      await _apiService.register(name, email, password);
+      await _apiService.register(name, email, password, className: className);
       // Auto-login after registration? Or just let them login?
       // Let's auto-login for better UX
       await login(email, password);
@@ -90,6 +95,7 @@ class AuthProvider with ChangeNotifier {
         role: _user!.role,
         phone: updates['phone'] ?? _user!.phone,
         bio: updates['bio'] ?? _user!.bio,
+        className: _user!.className,
       );
 
       // Persist to SharedPreferences
@@ -111,6 +117,9 @@ class AuthProvider with ChangeNotifier {
       email: _user!.email,
       name: _user!.name,
       role: newRole,
+      phone: _user!.phone,
+      bio: _user!.bio,
+      className: _user!.className,
     );
     notifyListeners();
   }
