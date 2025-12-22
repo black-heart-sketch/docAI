@@ -21,7 +21,7 @@ def create_app(config_name='default'):
     app.config.from_object(config_by_name[config_name])
 
     # Initialize extensions
-    CORS(app, origins=app.config['CORS_ORIGINS'])
+    CORS(app, origins=app.config['CORS_ORIGINS'], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
     mongo.init_app(app)
 
 
