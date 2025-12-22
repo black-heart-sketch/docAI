@@ -180,14 +180,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       context.go('/dashboard');
                                     }
                                   } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Registration failed. Email might be taken.',
+                                    if (mounted) {
+                                      // Extract error message from exception
+                                      String errorMessage = e.toString();
+                                      if (errorMessage.startsWith(
+                                        'Exception: ',
+                                      )) {
+                                        errorMessage = errorMessage.substring(
+                                          11,
+                                        );
+                                      }
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(errorMessage),
+                                          backgroundColor: Colors.red,
+                                          duration: const Duration(seconds: 5),
                                         ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                      );
+                                    }
                                   }
                                 }
                               },

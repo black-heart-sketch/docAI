@@ -99,12 +99,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 }
                               } catch (e) {
                                 if (context.mounted) {
+                                  // Extract error message from exception
+                                  String errorMessage = e.toString();
+                                  if (errorMessage.startsWith('Exception: ')) {
+                                    errorMessage = errorMessage.substring(11);
+                                  }
+
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Login failed. Check credentials.',
-                                      ),
+                                    SnackBar(
+                                      content: Text(errorMessage),
                                       backgroundColor: Colors.red,
+                                      duration: const Duration(seconds: 5),
                                     ),
                                   );
                                 }

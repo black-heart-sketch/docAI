@@ -18,12 +18,19 @@ class DevelopmentConfig(Config):
         re.compile(r"^http://127\.0\.0\.1(:\d+)?$"),   # http://127.0.0.1 or http://127.0.0.1:any_port
         "http://192.168.137.87:5003",                  # Local network IP
         "http://13.62.49.69:5003",
-        "http://13.62.49.69:5004",                      # Production IP
+        "http://13.62.49.69:5004", 
+        re.compile(r"^http://13\.62\.49\.69(:\d+)?$"),  # Production IP with any port
+        "http://13.62.49.69",                            # Production IP
     ]
 
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
+    # Allow all ports on production IP to fix CORS issues with web app
+    CORS_ORIGINS = [
+        re.compile(r"^http://13\.62\.49\.69(:\d+)?$"),  # Production IP with any port
+        "http://13.62.49.69",                            # Production IP without port
+    ]
 
 config_by_name = {
     'dev': DevelopmentConfig,

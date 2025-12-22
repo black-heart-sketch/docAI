@@ -21,6 +21,14 @@ class AuthProvider with ChangeNotifier {
     _setLoading(true);
     try {
       final data = await _apiService.login(email, password);
+
+      // Null-safety checks for CORS/network issues
+      if (data['token'] == null || data['user'] == null) {
+        throw Exception(
+          'Server response incomplete. Please check your network connection or try again later.',
+        );
+      }
+
       _token = data['token'];
       _user = User.fromJson(data['user']);
       await _storage.write(key: 'auth_token', value: _token);
@@ -30,7 +38,20 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Login failed: $e');
-      rethrow; // Allow UI to handle error
+      // Preserve the original error message for UI display
+      if (e.toString().contains('Failed to login')) {
+        throw Exception('Login failed: Invalid credentials or server error');
+      } else if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
+        throw Exception(
+          'Network error: Cannot connect to server. Check your internet connection.',
+        );
+      } else if (e.toString().contains('Server response incomplete')) {
+        throw Exception(
+          'CORS or network issue: Server not responding properly. Contact support.',
+        );
+      }
+      rethrow; // Preserve original error if not matched
     } finally {
       _setLoading(false);
     }
@@ -45,12 +66,24 @@ class AuthProvider with ChangeNotifier {
     _setLoading(true);
     try {
       await _apiService.register(name, email, password, className: className);
-      // Auto-login after registration? Or just let them login?
-      // Let's auto-login for better UX
+      // Auto-login after registration for better UX
       await login(email, password);
     } catch (e) {
       debugPrint('Registration failed: $e');
-      rethrow;
+      // Preserve the original error message for UI display
+      if (e.toString().contains('Failed to register')) {
+        final errorMsg = e.toString().replaceAll(
+          'Exception: Failed to register: ',
+          '',
+        );
+        throw Exception('Registration failed: $errorMsg');
+      } else if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
+        throw Exception(
+          'Network error: Cannot connect to server. Check your internet connection.',
+        );
+      }
+      rethrow; // Preserve original error if not matched
     } finally {
       _setLoading(false);
     }
