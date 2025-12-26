@@ -289,7 +289,7 @@ class _ProfileViewState extends State<ProfileView> {
                   const SizedBox(height: 30),
 
                   // Admin Dashboard Access
-                  if (user?.role == 'admin')
+                  if (user?.role == 'admin' || user?.role == 'class_prefect')
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20.0),
                       child: Container(

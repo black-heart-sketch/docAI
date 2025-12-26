@@ -40,4 +40,9 @@ class User {
       'class_name': className,
     };
   }
+
+  // Helper getters for role checking
+  bool get isAdmin => role == 'admin';
+  bool get isClassPrefect => role == 'class_prefect';
+  bool get isStudent => role == 'student';
 }

@@ -61,8 +61,14 @@ class User:
         users_collection = mongo.db.users
         
         # Only allow updating specific fields
-        allowed_fields = ['name', 'email', 'phone', 'bio', 'class_name']
+        allowed_fields = ['name', 'email', 'phone', 'bio', 'class_name', 'role']
         update_data = {k: v for k, v in updates.items() if k in allowed_fields}
+        
+        # Validate role if being updated
+        if 'role' in update_data:
+            valid_roles = ['student', 'class_prefect', 'admin']
+            if update_data['role'] not in valid_roles:
+                return False
         
         if not update_data:
             return False

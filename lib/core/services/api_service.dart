@@ -5,8 +5,8 @@ import '../models/template.dart';
 import '../models/user.dart';
 
 class ApiService {
-  static const String _baseUrl = "http://13.62.49.69:5003/api";
-  // static const String _baseUrl = "http://192.168.137.87:5003/api";
+  // static const String _baseUrl = "http://13.62.49.69:5003/api";
+  static const String _baseUrl = "http://192.168.137.87:5003/api";
   // static const String _baseUrl = "/api";
 
   // --- Auth ---
@@ -392,6 +392,61 @@ class ApiService {
     } else {
       final error = jsonDecode(response.body)['error'] ?? 'Unknown chat error';
       throw Exception(error);
+    }
+  }
+
+  // --- Receipts ---
+  Future<void> createReceipt(Map<String, dynamic> receiptData) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/receipts'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(receiptData),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create receipt');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserReceipts(String userId) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/receipts/user/$userId'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data['receipts']);
+    } else {
+      throw Exception('Failed to load user receipts');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllReceipts({String? userClass}) async {
+    final queryParams = userClass != null ? '?class=$userClass' : '';
+    final response = await http.get(
+      Uri.parse('$_baseUrl/receipts/all$queryParams'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data['receipts']);
+    } else {
+      throw Exception('Failed to load all receipts');
+    }
+  }
+
+  Future<void> validateReceipt(String receiptId) async {
+    final response = await http.put(
+      Uri.parse('$_baseUrl/receipts/$receiptId/validate'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to validate receipt');
+    }
+  }
+
+  Future<void> rejectReceipt(String receiptId) async {
+    final response = await http.put(
+      Uri.parse('$_baseUrl/receipts/$receiptId/reject'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to reject receipt');
     }
   }
 }

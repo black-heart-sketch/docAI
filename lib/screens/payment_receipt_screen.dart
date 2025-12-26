@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import '../core/services/api_service.dart';
 
 class PaymentReceiptScreen extends StatelessWidget {
   final String filename;
@@ -7,6 +14,8 @@ class PaymentReceiptScreen extends StatelessWidget {
   final int totalAmount;
   final String receiptNumber;
   final String? phoneNumber;
+  final String userId;
+  final String? userClass;
 
   const PaymentReceiptScreen({
     super.key,
@@ -14,7 +23,9 @@ class PaymentReceiptScreen extends StatelessWidget {
     required this.pages,
     required this.totalAmount,
     required this.receiptNumber,
+    required this.userId,
     this.phoneNumber,
+    this.userClass,
   });
 
   @override
@@ -319,25 +330,7 @@ class PaymentReceiptScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Row(
-                              children: [
-                                Icon(Icons.download, color: Colors.white),
-                                SizedBox(width: 8),
-                                Text('Receipt saved successfully!'),
-                              ],
-                            ),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                      onPressed: () => _handleDownload(context, theme),
                       icon: const Icon(Icons.download),
                       label: const Text('Download'),
                       style: ElevatedButton.styleFrom(
@@ -514,5 +507,265 @@ class PaymentReceiptScreen extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _handleDownload(BuildContext context, ThemeData theme) async {
+    try {
+      // Show loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('Generating receipt...'),
+            ],
+          ),
+          backgroundColor: theme.primaryColor,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Save to database
+      final apiService = ApiService();
+      await apiService.createReceipt({
+        'receipt_number': receiptNumber,
+        'user_id': userId,
+        'user_class': userClass,
+        'phone_number': phoneNumber,
+        'document_filename': filename,
+        'pages': pages,
+        'amount': totalAmount,
+      });
+
+      // Generate PDF
+      final pdf = await _generatePDF();
+      final bytes = await pdf.save();
+
+      // Platform-specific PDF handling
+      if (context.mounted) {
+        await _savePDF(bytes, context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Receipt saved and downloaded!'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Error: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _savePDF(List<int> bytes, BuildContext context) async {
+    if (kIsWeb) {
+      // Web: trigger download
+      // Note: For web, we'd need to use dart:html conditionally
+      // For now, just show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Web PDF download not yet implemented')),
+      );
+    } else {
+      // Mobile: Save to temp directory and share
+      final output = await getTemporaryDirectory();
+      final file = File('${output.path}/receipt_$receiptNumber.pdf');
+      await file.writeAsBytes(bytes);
+
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], text: 'Payment Receipt #$receiptNumber');
+    }
+  }
+
+  Future<pw.Document> _generatePDF() async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Container(
+                padding: const pw.EdgeInsets.all(20),
+                color: PdfColors.blue,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text(
+                      'PAYMENT RECEIPT',
+                      style: pw.TextStyle(
+                        fontSize: 28,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text(
+                      'Receipt #$receiptNumber',
+                      style: const pw.TextStyle(
+                        fontSize: 14,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 30),
+
+              // Receipt Details
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 20),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _buildPDFRow('Document:', filename),
+                    pw.SizedBox(height: 10),
+                    _buildPDFRow('Pages:', '$pages pages'),
+                    pw.SizedBox(height: 10),
+                    _buildPDFRow('Date:', _formatDate(DateTime.now())),
+                    if (phoneNumber != null && phoneNumber!.isNotEmpty)
+                      pw.SizedBox(height: 10),
+                    if (phoneNumber != null && phoneNumber!.isNotEmpty)
+                      _buildPDFRow('Phone:', phoneNumber!),
+                    pw.SizedBox(height: 30),
+
+                    // Total Amount
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(15),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.blue, width: 2),
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            'TOTAL AMOUNT:',
+                            style: pw.TextStyle(
+                              fontSize: 16,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                          pw.Text(
+                            '$totalAmount XAF',
+                            style: pw.TextStyle(
+                              fontSize: 24,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(height: 30),
+
+                    // Payment Instructions
+                    pw.Text(
+                      'Payment Instructions:',
+                      style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 10),
+                    pw.Text(
+                      'Pay using Mobile Money to:',
+                      style: const pw.TextStyle(fontSize: 12),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text('• MTN: 650 186 981'),
+                    pw.Text('• Orange: 699 976 446'),
+                    pw.SizedBox(height: 20),
+
+                    // Important Notes
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.grey300,
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Important:',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          pw.SizedBox(height: 6),
+                          pw.Text(
+                            '• Include receipt number in payment reference',
+                          ),
+                          pw.Text('• Keep receipt for verification'),
+                          pw.Text('• Present receipt when collecting document'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf;
+  }
+
+  pw.Widget _buildPDFRow(String label, String value) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(
+          width: 100,
+          child: pw.Text(
+            label,
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+          ),
+        ),
+        pw.Expanded(
+          child: pw.Text(value, style: const pw.TextStyle(fontSize: 12)),
+        ),
+      ],
+    );
   }
 }

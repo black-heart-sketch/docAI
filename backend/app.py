@@ -36,7 +36,9 @@ def create_app(config_name='default'):
 
     from routes.chat_routes import chat_bp
     app.register_blueprint(chat_bp)
-
+    
+    from routes.receipt_routes import receipt_routes
+    app.register_blueprint(receipt_routes)
 
 
     return app

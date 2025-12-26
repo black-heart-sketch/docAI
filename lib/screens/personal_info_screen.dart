@@ -18,20 +18,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   String? _selectedClass;
   bool _isLoading = false;
 
-  final List<String> _classOptions = [
-    'BA1A',
-    'BA1B',
-    'BA1C',
-    'BA1D',
-    'BA2A',
-    'BA2B',
-    'BA2C',
-    'BA2D',
-    'BA3A',
-    'BA3B',
-    'BA3C',
-    'BA3D',
-  ];
+  final List<String> _classOptions = ['BA1A', 'BA1B', 'BA1C', 'BA1D'];
 
   @override
   void initState() {

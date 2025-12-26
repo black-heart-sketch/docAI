@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/models/user.dart';
 import '../../core/models/template.dart';
 import '../../core/services/api_service.dart';
+import '../../core/providers/auth_provider.dart';
 import 'package:animated_notch_bottom_bar/animated_notch_bottom_bar/animated_notch_bottom_bar.dart';
 
 class AdminView extends StatefulWidget {
@@ -21,11 +23,15 @@ class _AdminViewState extends State<AdminView> {
   List<User> _users = [];
   List<Template> _templates = [];
   List<Map<String, dynamic>> _documents = [];
+  List<Map<String, dynamic>> _receipts = [];
   bool _isLoading = true;
   String _searchQuery = '';
   int _currentIndex = 0;
   String? _selectedUserClassFilter;
   String? _selectedDocumentClassFilter;
+  String _receiptSearchQuery = '';
+  String _selectedReceiptClassFilter = 'All';
+  String _selectedReceiptStatusFilter = 'all';
 
   final List<String> _classOptions = ['All', 'BA1A', 'BA1B', 'BA1C', 'BA1D'];
 
@@ -42,23 +48,44 @@ class _AdminViewState extends State<AdminView> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userRole = authProvider.user?.role;
+      final userClass = authProvider.user?.className;
+
       final tiers = await _apiService.getPricingTiers();
       final users = await _apiService.getUsers();
       final templates = await _apiService.getTemplates();
       final documents = await _apiService.getAllDocuments();
 
-      setState(() {
-        _pricingTiers = tiers;
-        _users = users;
-        _templates = templates;
-        _documents = documents;
-        _isLoading = false;
-      });
+      // If class prefect, only fetch receipts from their class
+      List<Map<String, dynamic>> receipts;
+      if (userRole == 'class_prefect' && userClass != null) {
+        receipts = await _apiService.getAllReceipts(userClass: userClass);
+      } else {
+        receipts = await _apiService.getAllReceipts();
+      }
+
+      if (mounted) {
+        setState(() {
+          _pricingTiers = tiers;
+          _users = users;
+          _templates = templates;
+          _documents = documents;
+          _receipts = receipts;
+          if (userRole == 'class_prefect' && userClass != null) {
+            _selectedReceiptClassFilter = userClass;
+          }
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading admin data: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -201,12 +228,20 @@ class _AdminViewState extends State<AdminView> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final List<Widget> bottomBarPages = [
-      _buildGeneralTab(),
-      _buildUsersTab(),
-      _buildTemplatesTab(),
-      _buildDocumentsTab(),
-    ];
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+    final isClassPrefect = user?.role == 'class_prefect';
+
+    // For class_prefect, show only receipts tab
+    final List<Widget> bottomBarPages = isClassPrefect
+        ? [_buildReceiptsTab()]
+        : [
+            _buildGeneralTab(),
+            _buildUsersTab(),
+            _buildTemplatesTab(),
+            _buildDocumentsTab(),
+            _buildReceiptsTab(),
+          ];
 
     return Scaffold(
       appBar: AppBar(
@@ -245,52 +280,79 @@ class _AdminViewState extends State<AdminView> {
         kBottomRadius: 28.0,
         color: Theme.of(context).cardColor,
         notchBottomBarController: _controller,
-        bottomBarItems: [
-          BottomBarItem(
-            inActiveItem: Icon(
-              Icons.settings_outlined,
-              color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-            ),
-            activeItem: Icon(
-              Icons.settings,
-              color: Theme.of(context).primaryColor,
-            ),
-            itemLabel: 'General',
-          ),
-          BottomBarItem(
-            inActiveItem: Icon(
-              Icons.people_outlined,
-              color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-            ),
-            activeItem: Icon(
-              Icons.people,
-              color: Theme.of(context).primaryColor,
-            ),
-            itemLabel: 'Users',
-          ),
-          BottomBarItem(
-            inActiveItem: Icon(
-              Icons.description_outlined,
-              color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-            ),
-            activeItem: Icon(
-              Icons.description,
-              color: Theme.of(context).primaryColor,
-            ),
-            itemLabel: 'Templates',
-          ),
-          BottomBarItem(
-            inActiveItem: Icon(
-              Icons.folder_outlined,
-              color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
-            ),
-            activeItem: Icon(
-              Icons.folder,
-              color: Theme.of(context).primaryColor,
-            ),
-            itemLabel: 'Documents',
-          ),
-        ],
+        bottomBarItems: isClassPrefect
+            ? [
+                // Only Receipts for class_prefect
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.receipt_long_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.receipt_long,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'Receipts',
+                ),
+              ]
+            : [
+                // All tabs for admin
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.settings_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.settings,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'General',
+                ),
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.people_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.people,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'Users',
+                ),
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.description_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.description,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'Templates',
+                ),
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.folder_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.folder,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'Documents',
+                ),
+                BottomBarItem(
+                  inActiveItem: Icon(
+                    Icons.receipt_long_outlined,
+                    color: Theme.of(context).iconTheme.color!.withOpacity(0.5),
+                  ),
+                  activeItem: Icon(
+                    Icons.receipt_long,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  itemLabel: 'Receipts',
+                ),
+              ],
       ),
     );
   }
@@ -563,10 +625,16 @@ class _AdminViewState extends State<AdminView> {
                     ),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
-                        // TODO: Implement actions
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Action $value clicked')),
-                        );
+                        if (value == 'Edit') {
+                          _showEditUserDialog(user);
+                        } else if (value == 'Delete') {
+                          // TODO: Implement delete
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Delete not implemented'),
+                            ),
+                          );
+                        }
                       },
                       itemBuilder: (BuildContext context) {
                         return {'Edit', 'Delete'}.map((String choice) {
@@ -1466,5 +1534,514 @@ class _AdminViewState extends State<AdminView> {
       default:
         return Colors.grey;
     }
+  }
+
+  Widget _buildReceiptsTab() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userRole = authProvider.user?.role;
+    final isAdmin = userRole == 'admin';
+
+    // Apply filters
+    final filteredReceipts = _receipts.where((receipt) {
+      final matchesSearch =
+          _receiptSearchQuery.isEmpty ||
+          (receipt['receipt_number']?.toString().toLowerCase().contains(
+                _receiptSearchQuery.toLowerCase(),
+              ) ??
+              false);
+
+      final matchesStatus =
+          _selectedReceiptStatusFilter == 'all' ||
+          receipt['status'] == _selectedReceiptStatusFilter;
+
+      final matchesClass =
+          !isAdmin ||
+          _selectedReceiptClassFilter == 'All' ||
+          receipt['user_class'] == _selectedReceiptClassFilter;
+
+      return matchesSearch && matchesStatus && matchesClass;
+    }).toList();
+
+    return Column(
+      children: [
+        // Search and Filters
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: Theme.of(context).cardColor,
+          child: Column(
+            children: [
+              // Search Bar
+              TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _receiptSearchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search Receipt #',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    // Class Filter
+                    _buildFilterLabel('Class:'),
+                    const SizedBox(width: 8),
+                    _buildFilterContainer(
+                      child: DropdownButton<String>(
+                        value: _selectedReceiptClassFilter,
+                        underline: const SizedBox(),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        items:
+                            (isAdmin
+                                    ? _classOptions
+                                    : [_selectedReceiptClassFilter])
+                                .map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value),
+                                  );
+                                })
+                                .toList(),
+                        onChanged: isAdmin
+                            ? (value) {
+                                setState(() {
+                                  _selectedReceiptClassFilter = value ?? 'All';
+                                });
+                              }
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Status Filter
+                    _buildFilterLabel('Status:'),
+                    const SizedBox(width: 8),
+                    _buildFilterContainer(
+                      child: DropdownButton<String>(
+                        value: _selectedReceiptStatusFilter,
+                        underline: const SizedBox(),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'all',
+                            child: Text('All Status'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'pending',
+                            child: Text('Pending'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'validated',
+                            child: Text('Validated'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'rejected',
+                            child: Text('Rejected'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedReceiptStatusFilter = value ?? 'all';
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Receipts list
+        Expanded(
+          child: filteredReceipts.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.receipt_long,
+                        size: 64,
+                        color: Theme.of(context).disabledColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _receiptSearchQuery.isEmpty
+                            ? 'No receipts found'
+                            : 'No receipts match your search',
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredReceipts.length,
+                  itemBuilder: (context, index) {
+                    final receipt = filteredReceipts[index];
+                    return _buildReceiptCard(receipt);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReceiptCard(Map<String, dynamic> receipt) {
+    final theme = Theme.of(context);
+    final status = receipt['status'] as String? ?? 'pending';
+    final receiptNumber = receipt['receipt_number'] as String? ?? 'N/A';
+    final amount = receipt['amount'] as int? ?? 0;
+    final filename = receipt['document_filename'] as String? ?? 'Unknown';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Receipt #$receiptNumber',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        filename,
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall?.color,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                _buildReceiptStatusBadge(status),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$amount XAF',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primaryColor,
+                  ),
+                ),
+                if (receipt['user_class'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      receipt['user_class'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.primaryColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            if (status == 'pending') ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _rejectReceipt(receipt['_id']),
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      label: const Text('Reject'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _validateReceipt(receipt['_id']),
+                      icon: const Icon(Icons.check_circle),
+                      label: const Text('Validate'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReceiptStatusBadge(String status) {
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case 'validated':
+        color = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case 'rejected':
+        color = Colors.red;
+        icon = Icons.cancel;
+        break;
+      default:
+        color = Colors.orange;
+        icon = Icons.pending;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 4),
+          Text(
+            status.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _validateReceipt(String receiptId) async {
+    try {
+      await _apiService.validateReceipt(receiptId);
+      _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Receipt validated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectReceipt(String receiptId) async {
+    try {
+      await _apiService.rejectReceipt(receiptId);
+      _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Receipt rejected'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showEditUserDialog(User user) {
+    final nameController = TextEditingController(text: user.name);
+    final emailController = TextEditingController(text: user.email);
+    String selectedClass = user.className ?? '';
+    String selectedRole = user.role;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: const Text('Edit User'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  enabled: false,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedClass.isEmpty ? null : selectedClass,
+                  decoration: const InputDecoration(
+                    labelText: 'Class',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text('Select Class'),
+                  items: _classOptions.map((className) {
+                    return DropdownMenuItem(
+                      value: className,
+                      child: Text(className),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setStateDialog(() {
+                      selectedClass = value ?? '';
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Role',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'student', child: Text('Student')),
+                    DropdownMenuItem(
+                      value: 'class_prefect',
+                      child: Text('Class Prefect'),
+                    ),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  ],
+                  onChanged: (value) {
+                    setStateDialog(() {
+                      selectedRole = value ?? 'student';
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.updateUser(user.id, {
+                    'name': nameController.text,
+                    'class_name': selectedClass.isEmpty ? null : selectedClass,
+                    'role': selectedRole,
+                  });
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('User updated successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+    );
+  }
+
+  Widget _buildFilterContainer({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Theme.of(context).primaryColor.withOpacity(0.2),
+        ),
+      ),
+      child: child,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:provider/provider.dart';
 import '../core/providers/document_provider.dart';
+import '../core/providers/auth_provider.dart';
 import '../core/services/api_service.dart';
 import '../core/models/document.dart';
 import 'payment_receipt_screen.dart';
@@ -277,6 +278,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     // Close the payment modal
     Navigator.pop(context);
 
+    // Get user ID from auth provider
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.id ?? '';
+    final userClass = authProvider.user?.className;
+
     // Navigate to receipt screen
     Navigator.push(
       context,
@@ -286,6 +292,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           pages: pages,
           totalAmount: estimatedPrice,
           receiptNumber: receiptNumber,
+          userId: userId,
+          userClass: userClass,
           phoneNumber: phoneNumber.isNotEmpty ? phoneNumber : null,
         ),
       ),

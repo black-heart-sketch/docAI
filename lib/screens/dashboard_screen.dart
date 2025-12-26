@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import 'tabs/home_view.dart';
 import 'tabs/chat_view.dart';
 import 'tabs/history_view.dart';
+import 'tabs/receipts_view.dart';
 import 'tabs/profile_view.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -18,7 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _pageController = PageController(initialPage: 0);
   final _controller = NotchBottomBarController(index: 0);
 
-  int maxCount = 4;
+  int maxCount = 5;
 
   @override
   void dispose() {
@@ -40,6 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const HomeView(),
       const ChatView(),
       const HistoryView(),
+      const ReceiptsView(),
       ProfileView(),
     ];
 
@@ -140,6 +142,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       size: iconSize,
                     ),
                     itemLabel: l10n.history,
+                  ),
+                  BottomBarItem(
+                    inActiveItem: Icon(
+                      Icons.receipt_long_outlined,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color!.withOpacity(0.5),
+                      size: iconSize,
+                    ),
+                    activeItem: Icon(
+                      Icons.receipt_long,
+                      color: Theme.of(context).primaryColor,
+                      size: iconSize,
+                    ),
+                    itemLabel: 'Receipts',
                   ),
                   BottomBarItem(
                     inActiveItem: Icon(
