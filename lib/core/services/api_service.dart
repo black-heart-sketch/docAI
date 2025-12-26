@@ -7,6 +7,7 @@ import '../models/user.dart';
 class ApiService {
   static const String _baseUrl = "http://13.62.49.69:5003/api";
   // static const String _baseUrl = "http://192.168.137.87:5003/api";
+  // static const String _baseUrl = "/api";
 
   // --- Auth ---
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -15,10 +16,20 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
+    print('Login response: ${response.statusCode} - ${response.body}');
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to login');
+      // Parse error message from backend
+      try {
+        final errorData = jsonDecode(response.body);
+        final errorMsg =
+            errorData['error'] ?? errorData['message'] ?? 'Unknown error';
+        throw Exception('Failed to login: $errorMsg');
+      } catch (e) {
+        // If parsing fails, throw generic error
+        throw Exception('Failed to login: ${response.body}');
+      }
     }
   }
 
@@ -43,8 +54,21 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
+    print('Register response: ${response.statusCode} - ${response.body}');
     if (response.statusCode != 201) {
-      throw Exception('Failed to register: ${response.body}');
+      // Parse error message from backend
+      try {
+        final errorData = jsonDecode(response.body);
+        final errorMsg =
+            errorData['error'] ?? errorData['message'] ?? 'Unknown error';
+        throw Exception('Failed to register: $errorMsg');
+      } catch (e) {
+        // If already an exception or parsing fails, keep original
+        if (e is Exception && e.toString().contains('Failed to register')) {
+          rethrow;
+        }
+        throw Exception('Failed to register: ${response.body}');
+      }
     }
   }
 

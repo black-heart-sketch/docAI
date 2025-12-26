@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../utils/share_pref.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final CustomSharePref _spf = CustomSharePref();
 
   User? _user;
@@ -22,34 +20,83 @@ class AuthProvider with ChangeNotifier {
     try {
       final data = await _apiService.login(email, password);
 
-      // Null-safety checks for CORS/network issues
-      if (data['token'] == null || data['user'] == null) {
-        throw Exception(
-          'Server response incomplete. Please check your network connection or try again later.',
-        );
+      // Parse response data
+      debugPrint('Login response successful, parsing data');
+      debugPrint('Full API response: $data');
+
+      _token = data['token'] as String?;
+      debugPrint(
+        'Token extracted: ${_token != null ? "exists (${_token!.substring(0, 10)}...)" : "NULL"}',
+      );
+
+      // Debug: Print the user data to see what we're parsing
+      debugPrint('Raw user data from API: ${data['user']}');
+
+      try {
+        _user = User.fromJson(data['user'] as Map<String, dynamic>);
+        debugPrint('✅ User object created successfully');
+        debugPrint('User details:');
+        debugPrint('  - ID: ${_user!.id}');
+        debugPrint('  - Email: ${_user!.email}');
+        debugPrint('  - Name: ${_user!.name}');
+        debugPrint('  - Role: ${_user!.role}');
+        debugPrint('  - Phone: ${_user!.phone ?? "NULL"}');
+        debugPrint('  - Bio: ${_user!.bio ?? "NULL"}');
+        debugPrint('  - ClassName: ${_user!.className ?? "NULL"}');
+      } catch (parseError) {
+        debugPrint('❌ Error parsing user: $parseError');
+        debugPrint('Stack trace: ${StackTrace.current}');
+        rethrow;
       }
 
-      _token = data['token'];
-      _user = User.fromJson(data['user']);
-      await _storage.write(key: 'auth_token', value: _token);
-      if (_user != null) {
-        await _spf.saveUser(_user!);
+      if (_token != null && _token!.isNotEmpty) {
+        try {
+          debugPrint('Saving token to SharedPreferences...');
+          debugPrint('Token value: ${_token!.substring(0, 20)}...');
+          await _spf.saveToken(_token!);
+          debugPrint('✅ Token saved successfully');
+        } catch (storageError) {
+          debugPrint('❌ Error saving token: $storageError');
+          rethrow;
+        }
+      } else {
+        debugPrint('⚠️ Token is null or empty, skipping save');
       }
+
+      if (_user != null) {
+        try {
+          debugPrint('Saving user to SharedPreferences...');
+          debugPrint('User JSON to save: ${_user!.toJson()}');
+          await _spf.saveUser(_user!);
+          debugPrint('✅ User saved to preferences successfully');
+        } catch (prefError) {
+          debugPrint('❌ Error saving user to preferences: $prefError');
+          rethrow;
+        }
+      } else {
+        debugPrint('⚠️ User is null, skipping save');
+      }
+
+      debugPrint('Calling notifyListeners()...');
       notifyListeners();
+      debugPrint('🎉 Login completed successfully for user: ${_user?.email}');
     } catch (e) {
       debugPrint('Login failed: $e');
       // Preserve the original error message for UI display
-      if (e.toString().contains('Failed to login')) {
-        throw Exception('Login failed: Invalid credentials or server error');
+      if (e.toString().contains('Failed to login:')) {
+        // Extract just the error message part
+        final errorMsg = e.toString().replaceFirst(
+          RegExp(r'Exception: Failed to login: '),
+          '',
+        );
+        throw Exception('$errorMsg');
       } else if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection')) {
         throw Exception(
           'Network error: Cannot connect to server. Check your internet connection.',
         );
       } else if (e.toString().contains('Server response incomplete')) {
-        throw Exception(
-          'CORS or network issue: Server not responding properly. Contact support.',
-        );
+        throw Exception('Server not responding properly. Please try again.');
       }
       rethrow; // Preserve original error if not matched
     } finally {
@@ -71,12 +118,13 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Registration failed: $e');
       // Preserve the original error message for UI display
-      if (e.toString().contains('Failed to register')) {
-        final errorMsg = e.toString().replaceAll(
-          'Exception: Failed to register: ',
+      if (e.toString().contains('Failed to register:')) {
+        // Extract just the error message part
+        final errorMsg = e.toString().replaceFirst(
+          RegExp(r'Exception: Failed to register: '),
           '',
         );
-        throw Exception('Registration failed: $errorMsg');
+        throw Exception('$errorMsg');
       } else if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection')) {
         throw Exception(
@@ -92,18 +140,37 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     _token = null;
     _user = null;
-    await _storage.delete(key: 'auth_token');
+    await _spf.removeToken();
     await _spf.removeUser();
     notifyListeners();
   }
 
   Future<void> tryAutoLogin() async {
-    final token = await _storage.read(key: 'auth_token');
+    debugPrint('🔄 Attempting auto-login...');
+    final token = await _spf.getToken();
+    debugPrint(
+      'Token from storage: ${token != null ? "exists (${token.substring(0, 10)}...)" : "NULL"}',
+    );
     if (token != null) {
       _token = token;
       // Try to load user from SharedPrefs
+      debugPrint('Loading user from SharedPreferences...');
       _user = await _spf.getUser();
+      if (_user != null) {
+        debugPrint('✅ User loaded from preferences:');
+        debugPrint('  - ID: ${_user!.id}');
+        debugPrint('  - Email: ${_user!.email}');
+        debugPrint('  - Name: ${_user!.name}');
+        debugPrint('  - Role: ${_user!.role}');
+        debugPrint('  - Phone: ${_user!.phone ?? "NULL"}');
+        debugPrint('  - Bio: ${_user!.bio ?? "NULL"}');
+        debugPrint('  - ClassName: ${_user!.className ?? "NULL"}');
+      } else {
+        debugPrint('⚠️ User is NULL after loading from preferences');
+      }
       notifyListeners();
+    } else {
+      debugPrint('❌ No token found, auto-login failed');
     }
   }
 
@@ -128,7 +195,7 @@ class AuthProvider with ChangeNotifier {
         role: _user!.role,
         phone: updates['phone'] ?? _user!.phone,
         bio: updates['bio'] ?? _user!.bio,
-        className: _user!.className,
+        className: updates['class_name'] ?? _user!.className,
       );
 
       // Persist to SharedPreferences

@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// ... (keep existing imports, I will target the phone field separately or just add the import at the top)
-
-// Wait, I can't do multiple discontinuous edits easily without multi_replace, but user tool `replace_file_content` is for single contiguous block.
-// I need to add the import AND update the field. These are far apart.
-// I will do two calls.
-
-// Call 1: Add import.
-
 import 'package:provider/provider.dart';
 import '../core/providers/document_provider.dart';
 import '../core/services/api_service.dart';
 import '../core/models/document.dart';
+import 'payment_receipt_screen.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -25,9 +18,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final _phoneController = TextEditingController();
-  String _selectedOperator = 'MTN_CMR';
   int _tierPrice = 50;
-  bool _isProcessingPayment = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   int? _expandedIndex;
@@ -224,7 +215,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       LengthLimitingTextInputFormatter(9),
                     ],
                     decoration: InputDecoration(
-                      labelText: 'Phone Number',
+                      labelText: 'Phone Number (Optional)',
                       hintText: '6xxxxxxx',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -236,54 +227,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       ).colorScheme.primary.withOpacity(0.1),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _selectedOperator,
-                    decoration: InputDecoration(
-                      labelText: 'Mobile Operator',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      prefixIcon: const Icon(Icons.sim_card),
-                      filled: false,
-                      fillColor: Colors.grey.shade50,
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'MTN_CMR',
-                        child: Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.yellow, size: 12),
-                            SizedBox(width: 8),
-                            Text('MTN'),
-                          ],
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ORANGE_CMR',
-                        child: Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.orange, size: 12),
-                            SizedBox(width: 8),
-                            Text('Orange'),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      setModalState(() {
-                        _selectedOperator = val!;
-                      });
-                    },
-                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _isProcessingPayment
-                          ? null
-                          : () => _processPayment(doc, setModalState),
+                      onPressed: () =>
+                          _generateReceipt(doc, pages, estimatedPrice),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
@@ -292,36 +242,20 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         ),
                         elevation: 2,
                       ),
-                      child: _isProcessingPayment
-                          ? const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Text('Processing...'),
-                              ],
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.lock),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Pay Now',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.receipt_long),
+                          SizedBox(width: 8),
+                          Text(
+                            'Generate Receipt',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -334,163 +268,28 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  void _processPayment(Document doc, StateSetter setModalState) async {
-    if (_phoneController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.warning, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Please enter a phone number'),
-            ],
-          ),
-          backgroundColor: Colors.orange.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+  void _generateReceipt(Document doc, int pages, int estimatedPrice) {
+    // Generate unique receipt number
+    final receiptNumber =
+        'DCX${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final phoneNumber = _phoneController.text.trim();
+
+    // Close the payment modal
+    Navigator.pop(context);
+
+    // Navigate to receipt screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaymentReceiptScreen(
+          filename: doc.filename,
+          pages: pages,
+          totalAmount: estimatedPrice,
+          receiptNumber: receiptNumber,
+          phoneNumber: phoneNumber.isNotEmpty ? phoneNumber : null,
         ),
-      );
-      return;
-    }
-
-    setModalState(() {
-      _isProcessingPayment = true;
-    });
-
-    try {
-      final result = await _apiService.initiatePayment(
-        doc.id,
-        _phoneController.text,
-        _selectedOperator,
-      );
-
-      final messageId = result['message_id'];
-
-      if (messageId != null) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.phone_android, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Payment initiated. Please confirm on your phone.',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.blueAccent,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        _pollPaymentStatus(doc.id, messageId.toString());
-      } else {
-        throw 'No message_id returned';
-      }
-    } catch (e) {
-      setModalState(() {
-        _isProcessingPayment = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Payment failed: $e')),
-            ],
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
-  }
-
-  void _pollPaymentStatus(String docId, String messageId) async {
-    int attempts = 0;
-    const maxAttempts = 10;
-
-    if (mounted) {
-      setState(() {
-        _isProcessingPayment = true;
-      });
-    }
-
-    while (attempts < maxAttempts) {
-      await Future.delayed(const Duration(seconds: 5));
-      try {
-        final statusRes = await _apiService.verifyPayment(docId, messageId);
-        if (statusRes['status'] == 'paid') {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Payment Successful! You can now print.'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-          setState(() {
-            _isProcessingPayment = false;
-          });
-          Provider.of<DocumentProvider>(
-            context,
-            listen: false,
-          ).uploadAndAnalyze(
-            Provider.of<DocumentProvider>(
-              context,
-              listen: false,
-            ).currentDocument!.filename,
-            "t1",
-            "1",
-          );
-          return;
-        }
-      } catch (e) {
-        debugPrint("Poll Error: $e");
-      }
-      attempts++;
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.access_time, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Payment timeout. Check status manually.'),
-            ],
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      setState(() {
-        _isProcessingPayment = false;
-      });
-    }
+      ),
+    );
   }
 
   @override

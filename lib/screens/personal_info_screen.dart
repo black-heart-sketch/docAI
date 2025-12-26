@@ -15,7 +15,23 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _bioController;
+  String? _selectedClass;
   bool _isLoading = false;
+
+  final List<String> _classOptions = [
+    'BA1A',
+    'BA1B',
+    'BA1C',
+    'BA1D',
+    'BA2A',
+    'BA2B',
+    'BA2C',
+    'BA2D',
+    'BA3A',
+    'BA3B',
+    'BA3C',
+    'BA3D',
+  ];
 
   @override
   void initState() {
@@ -25,6 +41,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     _emailController = TextEditingController(text: user?.email ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
     _bioController = TextEditingController(text: user?.bio ?? '');
+    _selectedClass = user?.className ?? '';
+    if (_selectedClass!.isEmpty) _selectedClass = null;
   }
 
   @override
@@ -51,6 +69,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         'bio': _bioController.text.trim().isEmpty
             ? null
             : _bioController.text.trim(),
+        'class_name': _selectedClass,
       };
 
       await Provider.of<AuthProvider>(
@@ -216,6 +235,41 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                     child: Icon(Icons.info, color: theme.primaryColor),
                   ),
                 ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Class Selection (Optional)
+              Text(
+                'Class (Optional)',
+                style: theme.textTheme.titleSmall!.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedClass,
+                decoration: InputDecoration(
+                  hintText: 'Select your class',
+                  filled: true,
+                  fillColor: theme.cardColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: Icon(Icons.school, color: theme.primaryColor),
+                ),
+                items: _classOptions.map((String className) {
+                  return DropdownMenuItem<String>(
+                    value: className,
+                    child: Text(className),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedClass = newValue;
+                  });
+                },
               ),
 
               const SizedBox(height: 40),

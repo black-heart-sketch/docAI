@@ -4,7 +4,8 @@ import re
 class Config:
     """Base configuration."""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-very-secret-key'
-    CORS_ORIGINS = ["http://13.62.49.69:5003"]  # Production origins only
+    CORS_ORIGINS = ["http://13.62.49.69:5003","http://13.62.49.69:5004",re.compile(r"^http://13\.62\.49\.69(:\d+)?$"),  # Production IP with any port
+        "http://13.62.49.69",]  # Production origins only
     MONGO_URI = os.environ.get('MONGO_URI') or "mongodb://localhost:27017/doc_ai_db"
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 

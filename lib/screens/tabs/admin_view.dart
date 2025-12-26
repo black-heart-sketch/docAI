@@ -408,7 +408,8 @@ class _AdminViewState extends State<AdminView> {
       if (_selectedUserClassFilter != null &&
           _selectedUserClassFilter != 'All' &&
           _selectedUserClassFilter!.isNotEmpty) {
-        return matchesSearch && user.className == _selectedUserClassFilter;
+        return matchesSearch &&
+            (user.className ?? '') == _selectedUserClassFilter;
       }
 
       return matchesSearch;
