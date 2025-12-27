@@ -29,6 +29,7 @@ class _HistoryViewState extends State<HistoryView> {
     if (authProvider.user != null) {
       _documentsFuture = _apiService.getUserDocuments(authProvider.user!.id);
     } else {
+      // If not logged in, we don't fetch anything. The UI will handle showing the prompt.
       _documentsFuture = Future.value([]);
     }
   }
@@ -128,66 +129,106 @@ class _HistoryViewState extends State<HistoryView> {
 
           // List
           Expanded(
-            child: FutureBuilder<List<Document>>(
-              future: _documentsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
+            child: Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                if (authProvider.user == null) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
+                        Icon(
+                          Icons.lock_outline,
+                          size: 64,
+                          color: theme.disabledColor,
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Error loading history\n${snapshot.error}',
-                          textAlign: TextAlign.center,
+                          'Please log in to view history',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
-                            setState(() {
-                              _loadDocuments();
-                            });
+                            context.go('/login');
                           },
-                          child: const Text("Retry"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Log In'),
                         ),
                       ],
                     ),
                   );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, size: 48, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text('No documents found'),
-                      ],
-                    ),
-                  );
                 }
 
-                final filteredDocs = _filterDocuments(snapshot.data!);
+                return FutureBuilder<List<Document>>(
+                  future: _documentsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Error loading history\n${snapshot.error}',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _loadDocuments();
+                                });
+                              },
+                              child: const Text("Retry"),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.history, size: 48, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text('No documents found'),
+                          ],
+                        ),
+                      );
+                    }
 
-                if (filteredDocs.isEmpty) {
-                  return const Center(child: Text("No documents match filter"));
-                }
+                    final filteredDocs = _filterDocuments(snapshot.data!);
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 20,
-                  ),
-                  itemCount: filteredDocs.length,
-                  itemBuilder: (context, index) {
-                    final doc = filteredDocs[index];
-                    return _buildHistoryCard(context, doc);
+                    if (filteredDocs.isEmpty) {
+                      return const Center(
+                        child: Text("No documents match filter"),
+                      );
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 20,
+                      ),
+                      itemCount: filteredDocs.length,
+                      itemBuilder: (context, index) {
+                        final doc = filteredDocs[index];
+                        return _buildHistoryCard(context, doc);
+                      },
+                    );
                   },
                 );
               },

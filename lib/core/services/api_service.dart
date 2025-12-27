@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/document.dart';
 import '../models/template.dart';
@@ -6,7 +7,7 @@ import '../models/user.dart';
 
 class ApiService {
   // static const String _baseUrl = "http://13.62.49.69:5003/api";
-  static const String _baseUrl = "http://192.168.137.87:5003/api";
+  static const String _baseUrl = "http://10.255.197.127:5003/api";
   // static const String _baseUrl = "/api";
 
   // --- Auth ---
@@ -96,14 +97,35 @@ class ApiService {
 
   // --- Documents ---
   Future<String> uploadDocument(
-    String filePath, // Changed from filename to filePath
+    String filePath, // Still required for mobile/desktop if bytes are null
     String templateId,
-    String studentId,
-  ) async {
+    String studentId, {
+    List<int>? fileBytes, // Added for web support
+    String? fileName, // Added for web support
+  }) async {
     final uri = Uri.parse('$_baseUrl/documents/upload');
     final request = http.MultipartRequest('POST', uri);
 
-    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    debugPrint('ApiService: Uploading document to $uri');
+
+    if (fileBytes != null) {
+      debugPrint(
+        'ApiService: Using file bytes for upload. Name: ${fileName ?? 'document'}',
+      );
+      // PROPOSE: Use bytes if provided (Web)
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          fileBytes,
+          filename: fileName ?? 'document',
+        ),
+      );
+    } else {
+      debugPrint('ApiService: Using file path for upload: $filePath');
+      // Fallback to path (Mobile/Desktop)
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    }
+
     request.fields['template_id'] = templateId;
     request.fields['student_id'] = studentId;
 

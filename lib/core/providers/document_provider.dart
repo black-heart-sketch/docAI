@@ -22,16 +22,24 @@ class DocumentProvider with ChangeNotifier {
   Future<void> uploadAndAnalyze(
     String filePath,
     String templateId,
-    String studentId,
-  ) async {
+    String studentId, {
+    List<int>? fileBytes, // Added for web
+    String? fileName, // Added for web
+  }) async {
     _isUploading = true;
     notifyListeners();
+
+    debugPrint(
+      'Provider: uploadAndAnalyze called. Bytes length: ${fileBytes?.length}, Path: $filePath',
+    );
 
     try {
       final docId = await _apiService.uploadDocument(
         filePath,
         templateId,
         studentId,
+        fileBytes: fileBytes,
+        fileName: fileName,
       );
 
       // Since backend analysis is synchronous, we can fetch the result immediately

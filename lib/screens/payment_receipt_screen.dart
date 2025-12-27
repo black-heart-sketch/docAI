@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import '../core/services/api_service.dart';
+import '../core/utils/download_helper.dart'; // Import the new helper
 
 class PaymentReceiptScreen extends StatelessWidget {
   final String filename;
@@ -550,9 +547,9 @@ class PaymentReceiptScreen extends StatelessWidget {
       final pdf = await _generatePDF();
       final bytes = await pdf.save();
 
-      // Platform-specific PDF handling
+      // Platform-agnostic PDF handling via DownloadHelper
       if (context.mounted) {
-        await _savePDF(bytes, context);
+        await DownloadHelper.savePDF(bytes, 'receipt_$receiptNumber.pdf');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -587,26 +584,6 @@ class PaymentReceiptScreen extends StatelessWidget {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _savePDF(List<int> bytes, BuildContext context) async {
-    if (kIsWeb) {
-      // Web: trigger download
-      // Note: For web, we'd need to use dart:html conditionally
-      // For now, just show message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Web PDF download not yet implemented')),
-      );
-    } else {
-      // Mobile: Save to temp directory and share
-      final output = await getTemporaryDirectory();
-      final file = File('${output.path}/receipt_$receiptNumber.pdf');
-      await file.writeAsBytes(bytes);
-
-      await Share.shareXFiles([
-        XFile(file.path),
-      ], text: 'Payment Receipt #$receiptNumber');
     }
   }
 

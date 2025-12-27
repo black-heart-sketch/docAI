@@ -1,3 +1,5 @@
+import 'dart:typed_data'; // For Uint8List
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../core/models/template.dart';
 
@@ -19,6 +21,7 @@ class UploadScreen extends StatefulWidget {
 class _UploadScreenState extends State<UploadScreen> {
   String? _selectedFileName;
   String? _selectedFilePath;
+  Uint8List? _selectedFileBytes;
   String? _selectedTemplateId;
 
   @override
@@ -121,12 +124,28 @@ class _UploadScreenState extends State<UploadScreen> {
             icon: const Icon(Icons.cloud_upload_outlined),
             label: Text(_selectedFileName ?? 'Choose a File'),
             onPressed: () async {
-              final result = await FilePicker.platform.pickFiles();
-              if (result != null && result.files.single.path != null) {
+              // Only load data into memory on Web (where path is unavailable)
+              final result = await FilePicker.platform.pickFiles(
+                withData: kIsWeb,
+              );
+
+              if (result != null) {
+                debugPrint('File picked: ${result.files.single.name}');
+                if (!kIsWeb) {
+                  debugPrint('File path: ${result.files.single.path}');
+                }
+                debugPrint(
+                  'File bytes length: ${result.files.single.bytes?.length}',
+                );
+                debugPrint('kIsWeb: $kIsWeb');
+
                 setState(() {
                   _selectedFileName = result.files.single.name;
-                  _selectedFilePath = result.files.single.path;
+                  _selectedFilePath = kIsWeb ? null : result.files.single.path;
+                  _selectedFileBytes = result.files.single.bytes;
                 });
+              } else {
+                debugPrint('File picking cancelled or failed.');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -236,10 +255,26 @@ class _UploadScreenState extends State<UploadScreen> {
             ),
             onPressed: (isReady && !isUploading)
                 ? () {
+                    debugPrint(
+                      'Upload button pressed. Bytes present: ${_selectedFileBytes != null}',
+                    );
+                    if (authProvider.user == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please log in to upload documents.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
                     docProvider.uploadAndAnalyze(
-                      _selectedFilePath!,
+                      _selectedFilePath ??
+                          '', // Might be null or empty on web, but provider handles it if bytes are present
                       _selectedTemplateId!,
                       authProvider.user!.id,
+                      fileBytes: _selectedFileBytes,
+                      fileName: _selectedFileName,
                     );
                     // Navigate to the analysis screen to show progress
                     context.go('/dashboard/analysis');

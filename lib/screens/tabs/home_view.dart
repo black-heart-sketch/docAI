@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/document_provider.dart';
 import '../../core/services/api_service.dart';
-import '../../utils/share_pref.dart';
 import '../templates_screen.dart';
 
 class HomeView extends StatefulWidget {
@@ -121,7 +120,7 @@ class _HomeViewState extends State<HomeView>
                     const SizedBox(height: 30),
 
                     // Quick Actions Section
-                    _buildQuickActionsSection(theme),
+                    _buildQuickActionsSection(theme, user),
 
                     const SizedBox(height: 30),
 
@@ -406,7 +405,7 @@ class _HomeViewState extends State<HomeView>
     );
   }
 
-  Widget _buildQuickActionsSection(ThemeData theme) {
+  Widget _buildQuickActionsSection(ThemeData theme, dynamic user) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -428,15 +427,11 @@ class _HomeViewState extends State<HomeView>
                 'Upload',
                 Icons.upload_file,
                 Colors.blueAccent,
-                () async {
-                  final spf = CustomSharePref();
-                  final isLoggedIn = await spf.isLoggedIn();
-                  if (context.mounted) {
-                    if (isLoggedIn) {
-                      context.go('/dashboard/upload');
-                    } else {
-                      _showLoginDialog();
-                    }
+                () {
+                  if (user != null) {
+                    context.go('/dashboard/upload');
+                  } else {
+                    _showLoginDialog();
                   }
                 },
               ),
@@ -450,7 +445,14 @@ class _HomeViewState extends State<HomeView>
                 Icons.document_scanner,
                 Colors.purpleAccent,
                 () {
-                  // TODO: Implement scan
+                  if (user != null) {
+                    // TODO: Implement scan
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Scanning coming soon!')),
+                    );
+                  } else {
+                    _showLoginDialog();
+                  }
                 },
               ),
             ),

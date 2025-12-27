@@ -26,9 +26,14 @@ def extract_text_from_file(file_path):
         return None, 0
     return text.strip(), page_count
 
+def chunk_text(text, chunk_size=15000):
+    """Splits text into chunks of approximately chunk_size characters."""
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
 def analyze_document(document_id, file_path, template_structure):
     """
     Analyzes the document against the template using OpenRouter AI.
+    Handles large documents by chunking and iterative refinement.
     """
     print(f"AI Service: Starting analysis for document {document_id}...")
     
@@ -42,34 +47,10 @@ def analyze_document(document_id, file_path, template_structure):
     
     print(f"AI Service: Document has {page_count} pages.")
 
-    # 2. Prepare Prompt
-    structure_desc = json.dumps(template_structure, indent=2)
-    prompt = f"""
-    You are an expert academic and professional document analyzer. 
-    Analyze the following document content against the provided template structure.
-    
-    TEMPLATE STRUCTURE:
-    {structure_desc}
-    
-    DOCUMENT CONTENT:
-    {document_text[:10000]}  # Truncate if too long to fit context, adjust as needed
-    
-    TASK:
-    1. Check if the document makes sense and is well-written for the topic.
-    2. Check if it matches the required structure sections.
-    3. Provide a percentage match score (0-100).
-    4. Provide feedback for each expected section.
-    
-    OUTPUT FORMAT (JSON ONLY):
-    {{
-        "accuracy_score": <number 0-100>,
-        "feedback": {{
-            "<Section Name>": {{"status": "found"|"missing"|"partial", "score": <0-100>, "notes": "<brief comments>"}},
-            ...
-        }},
-        "general_comments": "<overall assessment>"
-    }}
-    """
+    # 2. Chunk Text
+    chunks = chunk_text(document_text)
+    total_chunks = len(chunks)
+    print(f"AI Service: Split document into {total_chunks} chunks.")
 
     api_key = "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"
     if not api_key:
@@ -79,112 +60,121 @@ def analyze_document(document_id, file_path, template_structure):
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://docai.com", # Required by OpenRouter
+        "HTTP-Referer": "https://docai.com",
         "X-Title": "DocAI",
     }
-
     model = "tngtech/deepseek-r1t2-chimera:free"
-
-    # 3. Call AI API (Step 1: Get Reasoning/Initial Response)
-    # Using the user's requested scaffolding style
     
-    messages = [
-        {"role": "user", "content": prompt}
-    ]
+    current_analysis = None
+    
+    for i, chunk in enumerate(chunks):
+        chunk_num = i + 1
+        print(f"AI Service: Processing chunk {chunk_num}/{total_chunks}...")
+        
+        structure_desc = json.dumps(template_structure, indent=2)
+        
+        # Build Prompt
+        if chunk_num == 1:
+            # Initial Analysis Prompt
+            prompt = f"""
+            You are an expert academic and professional document analyzer. 
+            Analyze the following document content (Part {chunk_num} of {total_chunks}) against the provided template structure.
+            
+            TEMPLATE STRUCTURE:
+            {structure_desc}
+            
+            DOCUMENT CONTENT (PART {chunk_num}):
+            {chunk}
+            
+            TASK:
+            1. Check if the document makes sense and is well-written for the topic.
+            2. Check if it matches the required structure sections. 
+               NOTE: Section names in the document may not be exactly the same as the template. Use your judgment to identify corresponding sections.
+            3. Evaluate any EXTRA MATERIAL provided by the student that is not in the template. If relevant/valuable, note it in 'general_comments'.
+            4. Provide a percentage match score (0-100).
+            5. Provide feedback for each expected section.
+            
+            OUTPUT FORMAT (JSON ONLY):
+            {{
+                "accuracy_score": <number 0-100>,
+                "feedback": {{
+                    "<Section Name>": {{"status": "found"|"missing"|"partial", "score": <0-100>, "notes": "<brief comments>"}},
+                    ...
+                }},
+                "general_comments": "<overall assessment, including notes on specific extra material>"
+            }}
+            """
+        else:
+            # Refinement Prompt
+            previous_result_json = json.dumps(current_analysis, indent=2)
+            prompt = f"""
+            You are analyzing a large document in parts. 
+            Here is the analysis result from the previous {chunk_num - 1} parts:
+            {previous_result_json}
+            
+            Here is the NEXT part of the document (Part {chunk_num} of {total_chunks}):
+            {chunk}
+            
+            TASK:
+            Update the existing analysis JSON based on this new content.
+            1. If a section was marked 'missing' or 'partial' but is found in this new part (even with a slightly different name), mark it as 'found' and update the score/notes.
+            2. If new relevant EXTRA MATERIAL is found, append your observations to 'general_comments'.
+            3. Adjust the overall 'accuracy_score' if more requirements are met.
+            
+            OUTPUT FORMAT: Return the FULL UPDATED JSON only.
+            """
 
-    try:
-        # First call with reasoning enabled
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            data=json.dumps({
-                "model": model,
-                "messages": messages,
-                "reasoning": {"enabled": True}
-            })
-        )
+        # Call AI
+        messages = [{"role": "user", "content": prompt}]
         
-        if response.status_code != 200:
-            print(f"AI API Error (Step 1): {response.text}")
-            return {"error": "AI Service unavailable", "analysis_status": "failed"}
-
-        response_json = response.json()
-        assistant_message = response_json['choices'][0]['message']
-        
-        # If the model didn't return the final answer yet or we want to force 'thinking',
-        # we can do the second step. However, for this task, usually one shot is enough 
-        # unless we specifically need to "continue" reasoning.
-        # The user's scaffolding implies a 2-step process to ensure "Think carefully".
-        
-        # Prepare for Step 2 (Confirmation/Refinement) if needed, 
-        # OR just parse the result if it's already there.
-        # Given the "exacto" model and "reasoning", let's attempt to parse the content directly first.
-        # If it's empty or purely reasoning, we might need step 2.
-        
-        content = assistant_message.get('content', '')
-        
-        # Attempt to find JSON in the content
         try:
-            # Simple cleanup to find JSON block
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                result_json = json.loads(json_match.group(0))
-                # Add status
-                result_json['analysis_status'] = 'completed'
-                return {
-                    "analysis_result": result_json, 
-                    "analysis_status": "completed",
-                    "page_count": page_count
-                }
-            else:
-                # If no JSON found, maybe it needs the second step prompts?
-                # Let's try the user's scaffolding exactly.
-                pass 
-        except:
-             pass
+            response = requests.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                data=json.dumps({
+                    "model": model,
+                    "messages": messages,
+                    "reasoning": {"enabled": True}, 
+                    "response_format": {"type": "json_object"}
+                })
+            )
+            
+            if response.status_code != 200:
+                print(f"AI API Error (Chunk {chunk_num}): {response.text}")
+                # If a chunk fails, we might return partial result or fail. 
+                # For now, let's keep previous analysis if available, otherwise fail.
+                if current_analysis:
+                    print("Returning partial analysis due to error.")
+                    break
+                else:
+                    return {"error": f"AI service failed on chunk {chunk_num}", "analysis_status": "failed"}
 
-        # Step 2: "Are you sure? Think carefully." strategy as requested
-        # Preserve reasoning details if present
-        new_messages = [
-            {"role": "user", "content": prompt},
-             {
-                "role": "assistant",
-                "content": assistant_message.get('content'),
-                "reasoning_details": assistant_message.get('reasoning_details') 
-            },
-            {"role": "user", "content": "Are you sure? Provide the final JSON output now."}
-        ]
-        
-        response2 = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            data=json.dumps({
-                "model": model,
-                "messages": new_messages,
-                "reasoning": {"enabled": True},
-                "response_format": {"type": "json_object"} # Force JSON on step 2
-            })
-        )
+            response_json = response.json()
+            content = response_json['choices'][0]['message']['content']
+            
+            # Parse JSON
+            try:
+                import re
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    current_analysis = json.loads(json_match.group(0))
+                else:
+                    # Fallback or retry logic could go here. 
+                    # For now, print warning and continue if possible
+                    print(f"Warning: No JSON found in chunk {chunk_num} response.")
+            except Exception as e:
+                print(f"Error parsing JSON for chunk {chunk_num}: {e}")
+                
+        except Exception as e:
+             print(f"Exception processing chunk {chunk_num}: {e}")
+             if not current_analysis:
+                 return {"error": str(e), "analysis_status": "failed"}
+             break # Return what we have so far
 
-        if response2.status_code != 200:
-            print(f"AI API Error (Step 2): {response2.text}")
-            return {"error": "AI Service error in step 2", "analysis_status": "failed"}
-
-        response2_json = response2.json()
-        final_content = response2_json['choices'][0]['message']['content']
-        
-        # Parse Final JSON
-        result_data = json.loads(final_content)
-        return {
-            "analysis_result": result_data,
-            "analysis_status": "completed",
-            "page_count": page_count
-        }
-
-    except Exception as e:
-        print(f"AI Analysis Exception: {e}")
-        return {
-            "error": f"Analysis failed: {str(e)}",
-            "analysis_status": "failed"
-        }
+    # Finalize
+    if current_analysis:
+        current_analysis['analysis_status'] = 'completed'
+        current_analysis['page_count'] = page_count
+        return current_analysis
+    else:
+        return {"error": "Analysis produced no results", "analysis_status": "failed"}

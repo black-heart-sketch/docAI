@@ -38,8 +38,19 @@ class Receipt:
     
     @staticmethod
     def create(receipt_data):
-        """Create a new receipt"""
+        """Create a new receipt (Idempotent)"""
         print(f"🔧 Creating receipt with data: {receipt_data}")
+        
+        # Check if receipt already exists
+        existing_receipt = mongo.db[Receipt.collection_name].find_one({
+            'receipt_number': receipt_data['receipt_number']
+        })
+        
+        if existing_receipt:
+            print(f"⚠️ Receipt #{receipt_data['receipt_number']} already exists. Returning existing receipt.")
+            existing_receipt['_id'] = str(existing_receipt['_id'])
+            return existing_receipt
+
         receipt = {
             'receipt_number': receipt_data['receipt_number'],
             'user_id': receipt_data['user_id'],

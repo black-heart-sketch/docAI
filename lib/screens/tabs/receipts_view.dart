@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/api_service.dart';
 import '../../core/providers/auth_provider.dart';
@@ -27,7 +29,15 @@ class _ReceiptsViewState extends State<ReceiptsView> {
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final userId = authProvider.user?.id ?? '';
+
+      if (authProvider.user == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final userId = authProvider.user!.id;
 
       final receipts = await _apiService.getUserReceipts(userId);
 
@@ -89,21 +99,59 @@ class _ReceiptsViewState extends State<ReceiptsView> {
 
           // Receipts list
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredReceipts.isEmpty
-                ? _buildEmptyState(theme)
-                : RefreshIndicator(
-                    onRefresh: _loadReceipts,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _filteredReceipts.length,
-                      itemBuilder: (context, index) {
-                        final receipt = _filteredReceipts[index];
-                        return _buildReceiptCard(receipt, theme);
-                      },
+            child: Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                if (authProvider.user == null) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lock_outline,
+                          size: 64,
+                          color: theme.disabledColor,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Please log in to view receipts',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.go('/login');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Log In'),
+                        ),
+                      ],
                     ),
-                  ),
+                  );
+                }
+
+                return _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredReceipts.isEmpty
+                    ? _buildEmptyState(theme)
+                    : RefreshIndicator(
+                        onRefresh: _loadReceipts,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _filteredReceipts.length,
+                          itemBuilder: (context, index) {
+                            final receipt = _filteredReceipts[index];
+                            return _buildReceiptCard(receipt, theme);
+                          },
+                        ),
+                      );
+              },
+            ),
           ),
         ],
       ),
@@ -346,7 +394,12 @@ class _ReceiptsViewState extends State<ReceiptsView> {
       final date = DateTime.parse(dateStr);
       return '${date.day}/${date.month}/${date.year}';
     } catch (e) {
-      return dateStr;
+      try {
+        final date = HttpDate.parse(dateStr);
+        return '${date.day}/${date.month}/${date.year}';
+      } catch (e2) {
+        return dateStr;
+      }
     }
   }
 }
